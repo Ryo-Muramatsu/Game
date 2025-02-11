@@ -1,0 +1,85 @@
+name: Ubi Doc Action
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  test-action:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: UbiDoc
+        uses: Glider2355/ubi-doc@v0.0.1
+        with:
+          output_dir: 'docs'
+          repo: ${{ github.repository }}
+          branch: ${{ github.ref_name }}
+
+      - name: Check for differences in ubi-doc directory
+        id: diffcheck
+        run: |
+          echo "Checking for differences in ubi-doc compared to origin/main..."
+          ls -la docs
+          git fetch origin main
+          git add docs
+          if git diff --cached --quiet "origin/main" -- "docs"; then
+            echo "No differences found in ubi-doc Exiting."
+            echo "difffound=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Differences found, continuing..."
+            echo "difffound=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Close existing auto-generated HTML PRs
+        if: steps.diffcheck.outputs.difffound == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Closing existing auto-generated HTML PRs..."
+          # 過去の PR をリストアップし、番号を抽出して繰り返し閉じる
+          gh pr list \
+            --search "head:auto-generated-html" \
+            --state open \
+            --json number \
+            --limit 100 \
+            | jq -r '.[].number' \
+            | while read -r pr; do
+                echo "Closing PR #$pr"
+                gh pr close "$pr" --delete-branch
+              done
+
+      - name: Create Pull Request (via gh CLI)
+        if: steps.diffcheck.outputs.difffound == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # 1. Git のユーザー設定
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 2. ユニークなブランチ名を作成: auto-generated-html/<run_id>
+          BRANCH_NAME="auto-generated-html/${{ github.run_id }}"
+          git checkout -b "$BRANCH_NAME"
+
+          # 3. 変更をコミット
+          git add docs
+          git commit -m $'chore: Add generated HTML\n\nAuto-commit by GitHub Actions.'
+
+          # 4. ブランチをリモートにPush
+          git push origin "$BRANCH_NAME"
+
+          # 5. Pull Requestを作成
+          gh pr create \
+            --base main \
+            --head "$BRANCH_NAME" \
+            --title "Add generated HTML via GitHub Actions" \
+            --body "このPull Requestでは、最新のHTMLファイルを自動生成・追加しました。"

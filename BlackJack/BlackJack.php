@@ -6,6 +6,11 @@ require_once dirname(__FILE__).'/Trump.php';
 require_once dirname(__FILE__).'/Chip.php';
 require_once dirname(__FILE__).'/define.php';
 
+/**
+ * @ubiquitous ブラックジャック
+ * @context game
+ * @description ブラックジャックのゲームを行うクラス
+ */
 abstract class BlackJack {
   // 各使用クラスのインスタンス変数
   protected Trump $trump;
