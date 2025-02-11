@@ -18,7 +18,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: UbiDoc
-        uses: Glider2355/ubi-doc@v0.0.1
+        uses: Glider2355/ubi-doc@v0.0.2
         with:
           output_dir: 'docs'
           repo: ${{ github.repository }}
